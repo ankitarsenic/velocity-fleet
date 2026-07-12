@@ -9,6 +9,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend
 } from 'recharts';
 import LiveTripTracker from './LiveTripTracker';
+import PaymentGatewayModal, { PaymentTarget } from './PaymentGatewayModal';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').replace(/\/$/, '');
 
@@ -149,6 +150,7 @@ export default function App() {
   // Modals Visibility and Form States
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [trackingTrip, setTrackingTrip] = useState<Trip | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<PaymentTarget | null>(null);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   
@@ -1011,7 +1013,7 @@ export default function App() {
                         <td>{t.cargo_weight_kg.toLocaleString()} kg</td>
                         <td>
                           <span className={`badge ${
-                            t.status === 'COMPLETED' ? 'badge-success' : 'badge-warning'
+                            (t.status === 'COMPLETED' || t.status === 'PAID') ? 'badge-success' : 'badge-warning'
                           }`}>
                             {t.status}
                           </span>
@@ -1034,6 +1036,15 @@ export default function App() {
                                 <CheckCircle2 size={14} /> Complete
                               </button>
                             </div>
+                          )}
+                          {t.status === 'COMPLETED' && (
+                            <button 
+                              className="btn btn-success"
+                              style={{ padding: '6px 12px', fontSize: '12px' }}
+                              onClick={() => setPaymentTarget({ type: 'trip', id: t.id, amount: t.cargo_weight_kg * 15 })}
+                            >
+                              Settle Payment
+                            </button>
                           )}
                         </td>
                       </tr>
@@ -1095,7 +1106,7 @@ export default function App() {
                         <td>${m.cost.toLocaleString()}</td>
                         <td>
                           <span className={`badge ${
-                            m.status === 'COMPLETED' ? 'badge-success' : 'badge-warning'
+                            (m.status === 'COMPLETED' || m.status === 'PAID') ? 'badge-success' : 'badge-warning'
                           }`}>
                             {m.status}
                           </span>
@@ -1116,6 +1127,15 @@ export default function App() {
                               }}
                             >
                               <CheckCircle2 size={14} /> Complete Work
+                            </button>
+                          )}
+                          {m.status === 'COMPLETED' && (
+                            <button 
+                              className="btn btn-success"
+                              style={{ padding: '6px 12px', fontSize: '12px', marginLeft: '8px' }}
+                              onClick={() => setPaymentTarget({ type: 'maintenance', id: m.id, amount: m.cost })}
+                            >
+                              Settle Payment
                             </button>
                           )}
                         </td>
@@ -1621,6 +1641,17 @@ export default function App() {
 
       {trackingTrip && (
         <LiveTripTracker trip={trackingTrip} onClose={() => setTrackingTrip(null)} />
+      )}
+
+      {paymentTarget && (
+        <PaymentGatewayModal 
+          target={paymentTarget} 
+          onClose={() => setPaymentTarget(null)}
+          onSuccess={() => {
+            setPaymentTarget(null);
+            loadDashboardData();
+          }}
+        />
       )}
 
     </div>

@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models import Vehicle, Driver, Trip, Maintenance, FuelLog, Expense
 from datetime import datetime, date, timedelta
+import time
 from sqlalchemy import func
 
 api_bp = Blueprint('api', __name__)
@@ -550,4 +551,35 @@ def get_dashboard_stats():
         },
         'monthly_history': monthly_data,
         'driver_alerts': alerts_list
+    }), 200
+
+# --- PAYMENTS ENDPOINT ---
+@api_bp.route('/payments/process', methods=['POST'])
+@jwt_required()
+def process_payment():
+    data = request.get_json() or {}
+    ref_id = data.get('reference_id')
+    amount = data.get('amount')
+    method = data.get('payment_method')
+    record_type = data.get('record_type')
+
+    if not ref_id or not amount or not method or not record_type:
+        return jsonify({'message': 'Missing required payment fields'}), 400
+
+    # Simulate banking gateway delay
+    time.sleep(1.5)
+
+    if record_type == 'trip':
+        trip = Trip.query.get(ref_id)
+        if trip:
+            trip.status = 'PAID'
+    elif record_type == 'maintenance':
+        maint = Maintenance.query.get(ref_id)
+        if maint:
+            maint.status = 'PAID'
+            
+    db.session.commit()
+    return jsonify({
+        'message': 'Payment successful', 
+        'transaction_id': f'TXN-{int(time.time())}'
     }), 200
