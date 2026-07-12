@@ -72,6 +72,7 @@ class Driver(db.Model):
     license_number = db.Column(db.String(50), nullable=False)
     license_expiry = db.Column(db.Date, nullable=False)
     status = db.Column(db.String(20), nullable=False, default='AVAILABLE')  # AVAILABLE, ON_TRIP, INACTIVE
+    warnings_count = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -82,6 +83,7 @@ class Driver(db.Model):
             'license_number': self.license_number,
             'license_expiry': self.license_expiry.isoformat() if self.license_expiry else None,
             'status': self.status,
+            'warnings_count': self.warnings_count,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 

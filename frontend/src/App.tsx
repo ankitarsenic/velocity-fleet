@@ -9,6 +9,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend
 } from 'recharts';
 import LiveTripTracker from './LiveTripTracker';
+import MonthlyReportView from './components/MonthlyReportView';
 import VehicleFilterPanel, { FilterState } from './components/VehicleFilterPanel';
 import PaymentGatewayModal, { PaymentTarget } from './PaymentGatewayModal';
 
@@ -141,7 +142,7 @@ export default function App() {
   };
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'vehicles' | 'drivers' | 'trips' | 'maintenance' | 'expenses' | 'fuel'>('vehicles');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'vehicles' | 'drivers' | 'trips' | 'maintenance' | 'expenses' | 'fuel' | 'reports'>('vehicles');
 
   // Core Data Lists
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -713,6 +714,15 @@ export default function App() {
               <DollarSign size={18} /> Expenses
             </div>
           )}
+          
+          {hasPermission(['view_reports', 'manage_trips', 'view_financials']) && (
+            <div 
+              className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reports')}
+            >
+              <FileText size={18} /> Reports
+            </div>
+          )}
         </nav>
 
         <div className="user-profile-section">
@@ -728,14 +738,16 @@ export default function App() {
 
       {/* Main Panel Content */}
       <main className="main-content">
-        <header className="topbar">
-          <h1 className="page-title">
-            {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Registry
-          </h1>
-          <div style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-            Operations Active
-          </div>
-        </header>
+        {activeTab !== 'reports' && (
+          <header className="topbar">
+            <h1 className="page-title">
+              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Registry
+            </h1>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+              Operations Active
+            </div>
+          </header>
+        )}
 
         <div className="content-body">
           
@@ -1004,7 +1016,22 @@ export default function App() {
                       return (
                         <tr key={d.id}>
                           <td style={{ fontWeight: 600 }}>{d.employee_code}</td>
-                          <td>{d.name}</td>
+                          <td>
+                            {d.name}
+                            {d.warnings_count > 0 && (
+                              <span style={{ 
+                                marginLeft: '8px', 
+                                padding: '2px 6px', 
+                                borderRadius: '12px', 
+                                backgroundColor: 'rgba(220, 38, 38, 0.1)', 
+                                color: '#DC2626', 
+                                fontSize: '10px', 
+                                fontWeight: 'bold' 
+                              }}>
+                                ⚠️ {d.warnings_count} Speed {d.warnings_count === 1 ? 'Warning' : 'Warnings'}
+                              </span>
+                            )}
+                          </td>
                           <td>
                             <div>{d.license_number}</div>
                             <div style={{ fontSize: '12px', color: isExpired ? 'var(--accent-danger)' : 'var(--text-secondary)' }}>
@@ -1352,6 +1379,11 @@ export default function App() {
                 </table>
               </div>
             </div>
+          )}
+
+          {/* REPORTS TAB VIEW */}
+          {activeTab === 'reports' && (
+            <MonthlyReportView />
           )}
 
         </div>
