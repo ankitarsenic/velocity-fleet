@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Truck, UserCheck, Compass, 
   Wrench, Fuel, DollarSign, AlertTriangle, 
-  LogOut, Plus, CheckCircle2, Trash2, Calendar, FileText
+  LogOut, Plus, CheckCircle2, Trash2, Calendar, FileText, MapPin
 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend
 } from 'recharts';
+import LiveTripTracker from './LiveTripTracker';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').replace(/\/$/, '');
 
@@ -147,6 +148,7 @@ export default function App() {
 
   // Modals Visibility and Form States
   const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [trackingTrip, setTrackingTrip] = useState<Trip | null>(null);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   
@@ -1016,13 +1018,22 @@ export default function App() {
                         </td>
                         <td>
                           {t.status === 'DISPATCHED' && (
-                            <button 
-                              className="btn btn-success"
-                              style={{ padding: '6px 12px', fontSize: '12px' }}
-                              onClick={() => completeTrip(t.id)}
-                            >
-                              <CheckCircle2 size={14} /> Complete
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button 
+                                className="btn"
+                                style={{ padding: '6px 12px', fontSize: '12px', background: '#F97316', color: 'white', border: 'none' }}
+                                onClick={() => setTrackingTrip(t)}
+                              >
+                                <MapPin size={14} style={{ marginRight: '4px' }} /> Live Tracking
+                              </button>
+                              <button 
+                                className="btn btn-success"
+                                style={{ padding: '6px 12px', fontSize: '12px' }}
+                                onClick={() => completeTrip(t.id)}
+                              >
+                                <CheckCircle2 size={14} /> Complete
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -1606,6 +1617,10 @@ export default function App() {
             </form>
           </div>
         </div>
+      )}
+
+      {trackingTrip && (
+        <LiveTripTracker trip={trackingTrip} onClose={() => setTrackingTrip(null)} />
       )}
 
     </div>

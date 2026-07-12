@@ -609,3 +609,151 @@ body {
   font-weight: 500;
   margin-top: 4px;
 }
+/* Live Tracker Styles */
+.tracker-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.tracker-modal-content {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  height: 80vh;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.tracker-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1100;
+  background: rgba(15, 23, 42, 0.7);
+  border: none;
+  color: white;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
+}
+.tracker-close-btn:hover {
+  background: rgba(15, 23, 42, 0.9);
+  transform: scale(1.05);
+}
+.tracker-map-container {
+  width: 100%;
+  height: 100%;
+}
+.tracker-floating-card {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  right: 24px;
+  z-index: 1100;
+  background: rgba(30, 41, 59, 0.95);
+  padding: 20px;
+  border-radius: 16px;
+}
+.tracker-eta-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.eta-time {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: white;
+}
+.eta-badge {
+  display: flex;
+  align-items: center;
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.tracker-progress-bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.tracker-progress-fill {
+  height: 100%;
+  background: #F97316;
+  border-radius: 3px;
+  transition: width 1s linear;
+}
+.tracker-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.driver-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.driver-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #F97316, #f59e0b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+  border: 2px solid rgba(255,255,255,0.2);
+}
+.driver-name {
+  font-weight: 600;
+  color: white;
+  font-size: 1.1rem;
+}
+.safety-score {
+  font-size: 0.875rem;
+  color: #10b981;
+  margin-top: 2px;
+}
+.vehicle-info {
+  text-align: right;
+}
+.vehicle-model {
+  font-weight: 500;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+.vehicle-plate {
+  display: inline-block;
+  background: #f1f5f9;
+  color: #0f172a;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.9rem;
+  border: 1px solid #cbd5e1;
+}
