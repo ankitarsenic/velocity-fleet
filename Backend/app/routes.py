@@ -5,18 +5,94 @@ from app.models import Vehicle, Driver, Trip, Maintenance, FuelLog, Expense
 from datetime import datetime, date, timedelta
 import time
 from sqlalchemy import func
+from app.auth import requires_permission
 
 api_bp = Blueprint('api', __name__)
 
 # --- VEHICLES ENDPOINTS ---
 @api_bp.route('/vehicles', methods=['GET'])
 @jwt_required()
+@requires_permission('read_vehicles')
 def get_vehicles():
-    vehicles = Vehicle.query.all()
-    return jsonify([v.to_dict() for v in vehicles]), 200
+    query = Vehicle.query
+
+    # Search
+    search = request.args.get('search')
+    if search:
+        query = query.filter(db.or_(
+            Vehicle.registration_number.ilike(f'%{search}%'),
+            Vehicle.make.ilike(f'%{search}%'),
+            Vehicle.model.ilike(f'%{search}%')
+        ))
+
+    # Multi-select filters
+    statuses = request.args.getlist('status')
+    if statuses:
+        query = query.filter(Vehicle.status.in_(statuses))
+
+    types = request.args.getlist('type')
+    if types:
+        query = query.filter(Vehicle.vehicle_type.in_(types))
+        
+    regions = request.args.getlist('region')
+    if regions:
+        query = query.filter(Vehicle.region.in_(regions))
+        
+    license_categories = request.args.getlist('license_category')
+    if license_categories:
+        query = query.filter(Vehicle.license_category.in_(license_categories))
+
+    # Range filters
+    min_score = request.args.get('min_score', type=int)
+    if min_score is not None:
+        query = query.filter(Vehicle.safety_score >= min_score)
+        
+    max_score = request.args.get('max_score', type=int)
+    if max_score is not None:
+        query = query.filter(Vehicle.safety_score <= max_score)
+
+    # Sorting
+    sort_by = request.args.get('sort_by', 'id')
+    sort_dir = request.args.get('sort_dir', 'asc')
+    
+    if hasattr(Vehicle, sort_by):
+        column = getattr(Vehicle, sort_by)
+        if sort_dir.lower() == 'desc':
+            query = query.order_by(column.desc())
+        else:
+            query = query.order_by(column.asc())
+
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 10, type=int)
+    
+    if limit > 0:
+        pagination = query.paginate(page=page, per_page=limit, error_out=False)
+        return jsonify({
+            'data': [v.to_dict() for v in pagination.items],
+            'meta': {
+                'total': pagination.total,
+                'page': pagination.page,
+                'pages': pagination.pages,
+                'limit': pagination.per_page
+            }
+        }), 200
+    else:
+        # If limit is 0 or not provided properly, return all matching
+        vehicles = query.all()
+        return jsonify({
+            'data': [v.to_dict() for v in vehicles],
+            'meta': {
+                'total': len(vehicles),
+                'page': 1,
+                'pages': 1,
+                'limit': len(vehicles)
+            }
+        }), 200
 
 @api_bp.route('/vehicles', methods=['POST'])
 @jwt_required()
+@requires_permission('manage_vehicles')
 def create_vehicle():
     data = request.get_json() or {}
     reg = data.get('registration_number')
@@ -42,6 +118,7 @@ def create_vehicle():
 
 @api_bp.route('/vehicles/<int:id>', methods=['PUT'])
 @jwt_required()
+@requires_permission('manage_vehicles')
 def update_vehicle(id):
     vehicle = Vehicle.query.get(id)
     if not vehicle:
@@ -74,6 +151,7 @@ def update_vehicle(id):
 
 @api_bp.route('/vehicles/<int:id>', methods=['DELETE'])
 @jwt_required()
+@requires_permission('manage_vehicles')
 def delete_vehicle(id):
     vehicle = Vehicle.query.get(id)
     if not vehicle:
@@ -91,12 +169,14 @@ def delete_vehicle(id):
 # --- DRIVERS ENDPOINTS ---
 @api_bp.route('/drivers', methods=['GET'])
 @jwt_required()
+@requires_permission(['manage_drivers', 'read_drivers', 'assign_drivers'])
 def get_drivers():
     drivers = Driver.query.all()
     return jsonify([d.to_dict() for d in drivers]), 200
 
 @api_bp.route('/drivers', methods=['POST'])
 @jwt_required()
+@requires_permission('manage_drivers')
 def create_driver():
     data = request.get_json() or {}
     code = data.get('employee_code')
@@ -125,6 +205,7 @@ def create_driver():
 
 @api_bp.route('/drivers/<int:id>', methods=['PUT'])
 @jwt_required()
+@requires_permission('manage_drivers')
 def update_driver(id):
     driver = Driver.query.get(id)
     if not driver:
@@ -157,6 +238,7 @@ def update_driver(id):
 
 @api_bp.route('/drivers/<int:id>', methods=['DELETE'])
 @jwt_required()
+@requires_permission('manage_drivers')
 def delete_driver(id):
     driver = Driver.query.get(id)
     if not driver:
@@ -170,16 +252,18 @@ def delete_driver(id):
     return jsonify({'message': 'Driver deleted successfully'}), 200
 
 
-# --- TRIPS ENDPOINTS (DISPATCH/COMPLETE) ---
+# --- TRIPS ENDPOINTS ---
 @api_bp.route('/trips', methods=['GET'])
 @jwt_required()
+@requires_permission(['manage_trips', 'view_assigned_trips'])
 def get_trips():
     trips = Trip.query.order_by(Trip.dispatch_time.desc()).all()
     return jsonify([t.to_dict() for t in trips]), 200
 
 @api_bp.route('/trips', methods=['POST'])
 @jwt_required()
-def dispatch_trip():
+@requires_permission('manage_trips')
+def create_trip():
     data = request.get_json() or {}
     v_id = data.get('vehicle_id')
     d_id = data.get('driver_id')
@@ -237,6 +321,7 @@ def dispatch_trip():
 
 @api_bp.route('/trips/<int:id>/complete', methods=['POST'])
 @jwt_required()
+@requires_permission(['manage_trips', 'update_trip_status'])
 def complete_trip(id):
     trip = Trip.query.get(id)
     if not trip:
@@ -261,12 +346,14 @@ def complete_trip(id):
 # --- MAINTENANCE ENDPOINTS ---
 @api_bp.route('/maintenance', methods=['GET'])
 @jwt_required()
+@requires_permission(['manage_vehicles', 'view_inspections', 'manage_safety'])
 def get_maintenance():
     logs = Maintenance.query.order_by(Maintenance.start_date.desc()).all()
     return jsonify([l.to_dict() for l in logs]), 200
 
 @api_bp.route('/maintenance', methods=['POST'])
 @jwt_required()
+@requires_permission(['manage_vehicles', 'manage_safety'])
 def create_maintenance():
     data = request.get_json() or {}
     v_id = data.get('vehicle_id')
@@ -303,6 +390,7 @@ def create_maintenance():
 
 @api_bp.route('/maintenance/<int:id>/complete', methods=['POST'])
 @jwt_required()
+@requires_permission(['manage_vehicles', 'manage_safety'])
 def complete_maintenance(id):
     log = Maintenance.query.get(id)
     if not log:
@@ -347,12 +435,14 @@ def complete_maintenance(id):
 # --- FUEL LOGS ENDPOINTS ---
 @api_bp.route('/fuel', methods=['GET'])
 @jwt_required()
+@requires_permission(['manage_vehicles', 'view_fuel'])
 def get_fuel_logs():
     logs = FuelLog.query.order_by(FuelLog.date.desc()).all()
     return jsonify([l.to_dict() for l in logs]), 200
 
 @api_bp.route('/fuel', methods=['POST'])
 @jwt_required()
+@requires_permission('manage_vehicles')
 def create_fuel_log():
     data = request.get_json() or {}
     v_id = data.get('vehicle_id')
@@ -390,15 +480,17 @@ def create_fuel_log():
     return jsonify(log.to_dict()), 201
 
 
-# --- GENERAL EXPENSES ENDPOINTS ---
+# --- EXPENSES ENDPOINTS ---
 @api_bp.route('/expenses', methods=['GET'])
 @jwt_required()
+@requires_permission(['manage_trips', 'manage_expenses', 'view_financials'])
 def get_expenses():
     expenses = Expense.query.order_by(Expense.date.desc()).all()
     return jsonify([e.to_dict() for e in expenses]), 200
 
 @api_bp.route('/expenses', methods=['POST'])
 @jwt_required()
+@requires_permission(['manage_trips', 'manage_expenses'])
 def create_expense():
     data = request.get_json() or {}
     amount = data.get('amount')
@@ -427,10 +519,11 @@ def create_expense():
     return jsonify(expense.to_dict()), 201
 
 
-# --- EXECUTIVE KPIs DASHBOARD ENDPOINT ---
+# --- DASHBOARD & ANALYTICS ---
 @api_bp.route('/dashboard', methods=['GET'])
 @jwt_required()
-def get_dashboard_stats():
+@requires_permission(['view_reports', 'manage_trips', 'view_financials'])
+def get_dashboard_metrics():
     # Active trips
     active_trips = Trip.query.filter_by(status='DISPATCHED').count()
     completed_trips = Trip.query.filter_by(status='COMPLETED').count()
@@ -553,9 +646,10 @@ def get_dashboard_stats():
         'driver_alerts': alerts_list
     }), 200
 
-# --- PAYMENTS ENDPOINT ---
+# --- PAYMENT GATEWAY ENDPOINT ---
 @api_bp.route('/payments/process', methods=['POST'])
 @jwt_required()
+@requires_permission(['manage_expenses', 'manage_trips', 'manage_vehicles'])
 def process_payment():
     data = request.get_json() or {}
     ref_id = data.get('reference_id')

@@ -5,12 +5,14 @@ from werkzeug.security import generate_password_hash, check_password_hash
 class Role(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
+    permissions = db.Column(db.JSON, nullable=True)
     users = db.relationship('User', backref='role', lazy=True)
 
     def to_dict(self):
         return {
             'id': self.id,
-            'name': self.name
+            'name': self.name,
+            'permissions': self.permissions or []
         }
 
 class User(db.Model):
@@ -31,7 +33,8 @@ class User(db.Model):
             'id': self.id,
             'email': self.email,
             'name': self.name,
-            'role': self.role.name if self.role else None
+            'role': self.role.name if self.role else None,
+            'permissions': self.role.permissions if self.role and self.role.permissions else []
         }
 
 class Vehicle(db.Model):
@@ -40,7 +43,11 @@ class Vehicle(db.Model):
     make = db.Column(db.String(50), nullable=False)
     model = db.Column(db.String(50), nullable=False)
     capacity_kg = db.Column(db.Integer, nullable=False)
-    status = db.Column(db.String(20), nullable=False, default='AVAILABLE')  # AVAILABLE, ON_TRIP, MAINTENANCE
+    status = db.Column(db.String(20), nullable=False, default='AVAILABLE')  # AVAILABLE, ON_TRIP, MAINTENANCE, OUT_OF_SERVICE, IDLE
+    vehicle_type = db.Column(db.String(50), nullable=True)
+    region = db.Column(db.String(50), nullable=True)
+    license_category = db.Column(db.String(50), nullable=True)
+    safety_score = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -51,6 +58,10 @@ class Vehicle(db.Model):
             'model': self.model,
             'capacity_kg': self.capacity_kg,
             'status': self.status,
+            'vehicle_type': self.vehicle_type,
+            'region': self.region,
+            'license_category': self.license_category,
+            'safety_score': self.safety_score,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 

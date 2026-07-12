@@ -9,6 +9,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend
 } from 'recharts';
 import LiveTripTracker from './LiveTripTracker';
+import VehicleFilterPanel, { FilterState } from './components/VehicleFilterPanel';
 import PaymentGatewayModal, { PaymentTarget } from './PaymentGatewayModal';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').replace(/\/$/, '');
@@ -131,8 +132,16 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
 
+  const hasPermission = (permissions: string | string[]) => {
+    if (!user || !user.permissions) return false;
+    const perms = Array.isArray(permissions) ? permissions : [permissions];
+    if (user.permissions.includes('*')) return true;
+    if (user.permissions.includes('read_only') && perms.some(p => p.startsWith('read_') || p.startsWith('view_'))) return true;
+    return perms.some(p => user.permissions.includes(p));
+  };
+
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'vehicles' | 'drivers' | 'trips' | 'maintenance' | 'expenses' | 'fuel'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'vehicles' | 'drivers' | 'trips' | 'maintenance' | 'expenses' | 'fuel'>('vehicles');
 
   // Core Data Lists
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -141,6 +150,20 @@ export default function App() {
   const [maintenance, setMaintenance] = useState<MaintenanceRecord[]>([]);
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+
+  // Advanced Filtering State for Vehicles
+  const [vehicleFilters, setVehicleFilters] = useState<FilterState>(() => {
+    const saved = sessionStorage.getItem('vehicleFilters');
+    return saved ? JSON.parse(saved) : { search: '', status: [], type: [], region: [], license_category: [], safety_score: [] };
+  });
+  
+  // Save filters to session storage when they change
+  useEffect(() => {
+    sessionStorage.setItem('vehicleFilters', JSON.stringify(vehicleFilters));
+  }, [vehicleFilters]);
+
+  const [vehiclePagination, setVehiclePagination] = useState({ page: 1, limit: 10, total: 0, pages: 1 });
+  const [uniqueRegions, setUniqueRegions] = useState<string[]>(['North', 'South', 'East', 'West', 'Central']);
 
   // Dashboard Stats
   const [kpis, setKpis] = useState<KPI | null>(null);
@@ -231,11 +254,41 @@ export default function App() {
 
   const loadVehicles = async () => {
     try {
-      const res = await fetchWithAuth('/vehicles');
+      const params = new URLSearchParams();
+      if (vehicleFilters.search) params.append('search', vehicleFilters.search);
+      vehicleFilters.status.forEach(s => params.append('status', s));
+      vehicleFilters.type.forEach(s => params.append('type', s));
+      vehicleFilters.region.forEach(s => params.append('region', s));
+      vehicleFilters.license_category.forEach(s => params.append('license_category', s));
+      
+      if (vehicleFilters.safety_score.length > 0) {
+        // Simple mapping to min_score (mock logic, ideally handle accurately)
+        if (vehicleFilters.safety_score.includes('excellent')) params.append('min_score', '90');
+        else if (vehicleFilters.safety_score.includes('poor')) params.append('max_score', '49');
+        else if (vehicleFilters.safety_score.includes('average')) params.append('min_score', '50');
+      }
+
+      params.append('page', vehiclePagination.page.toString());
+      params.append('limit', vehiclePagination.limit.toString());
+      
+      const res = await fetchWithAuth(`/vehicles?${params.toString()}`);
       const data = await res.json();
-      if (res.ok) setVehicles(data);
+      if (res.ok) {
+        if (data.data) {
+          setVehicles(data.data);
+          setVehiclePagination(data.meta);
+        } else {
+          setVehicles(data);
+        }
+      }
     } catch (err) { console.error(err); }
   };
+
+  useEffect(() => {
+    if (activeTab === 'vehicles') {
+      loadVehicles();
+    }
+  }, [vehicleFilters, vehiclePagination.page, vehiclePagination.limit]);
 
   const loadDrivers = async () => {
     try {
@@ -598,54 +651,68 @@ export default function App() {
         </div>
 
         <nav className="nav-menu">
-          <div 
-            className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('dashboard')}
-          >
-            <LayoutDashboard size={18} /> Dashboard
-          </div>
+          {hasPermission(['view_reports', 'view_financials', 'manage_trips']) && (
+            <div 
+              className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+              onClick={() => setActiveTab('dashboard')}
+            >
+              <LayoutDashboard size={18} /> Dashboard
+            </div>
+          )}
 
-          <div 
-            className={`nav-item ${activeTab === 'vehicles' ? 'active' : ''}`}
-            onClick={() => setActiveTab('vehicles')}
-          >
-            <Truck size={18} /> Vehicles
-          </div>
+          {hasPermission(['manage_vehicles', 'read_vehicles', 'assign_vehicles']) && (
+            <div 
+              className={`nav-item ${activeTab === 'vehicles' ? 'active' : ''}`}
+              onClick={() => setActiveTab('vehicles')}
+            >
+              <Truck size={18} /> Vehicles
+            </div>
+          )}
 
-          <div 
-            className={`nav-item ${activeTab === 'drivers' ? 'active' : ''}`}
-            onClick={() => setActiveTab('drivers')}
-          >
-            <UserCheck size={18} /> Drivers
-          </div>
+          {hasPermission(['manage_drivers', 'read_drivers', 'assign_drivers']) && (
+            <div 
+              className={`nav-item ${activeTab === 'drivers' ? 'active' : ''}`}
+              onClick={() => setActiveTab('drivers')}
+            >
+              <UserCheck size={18} /> Drivers
+            </div>
+          )}
 
-          <div 
-            className={`nav-item ${activeTab === 'trips' ? 'active' : ''}`}
-            onClick={() => setActiveTab('trips')}
-          >
-            <Compass size={18} /> Dispatch Trips
-          </div>
+          {hasPermission(['manage_trips', 'view_assigned_trips']) && (
+            <div 
+              className={`nav-item ${activeTab === 'trips' ? 'active' : ''}`}
+              onClick={() => setActiveTab('trips')}
+            >
+              <Compass size={18} /> Dispatch Trips
+            </div>
+          )}
 
-          <div 
-            className={`nav-item ${activeTab === 'maintenance' ? 'active' : ''}`}
-            onClick={() => setActiveTab('maintenance')}
-          >
-            <Wrench size={18} /> Maintenance
-          </div>
+          {hasPermission(['manage_vehicles', 'manage_safety', 'view_inspections']) && (
+            <div 
+              className={`nav-item ${activeTab === 'maintenance' ? 'active' : ''}`}
+              onClick={() => setActiveTab('maintenance')}
+            >
+              <Wrench size={18} /> Maintenance
+            </div>
+          )}
 
-          <div 
-            className={`nav-item ${activeTab === 'fuel' ? 'active' : ''}`}
-            onClick={() => setActiveTab('fuel')}
-          >
-            <Fuel size={18} /> Fuel Logs
-          </div>
+          {hasPermission(['manage_vehicles', 'view_fuel']) && (
+            <div 
+              className={`nav-item ${activeTab === 'fuel' ? 'active' : ''}`}
+              onClick={() => setActiveTab('fuel')}
+            >
+              <Fuel size={18} /> Fuel Logs
+            </div>
+          )}
 
-          <div 
-            className={`nav-item ${activeTab === 'expenses' ? 'active' : ''}`}
-            onClick={() => setActiveTab('expenses')}
-          >
-            <DollarSign size={18} /> Expenses
-          </div>
+          {hasPermission(['manage_trips', 'manage_expenses', 'view_financials']) && (
+            <div 
+              className={`nav-item ${activeTab === 'expenses' ? 'active' : ''}`}
+              onClick={() => setActiveTab('expenses')}
+            >
+              <DollarSign size={18} /> Expenses
+            </div>
+          )}
         </nav>
 
         <div className="user-profile-section">
@@ -790,18 +857,27 @@ export default function App() {
           {activeTab === 'vehicles' && (
             <div className="glass-panel section-panel">
               <div className="section-header">
-                <h3 className="section-title">Active Vehicles ({vehicles.length})</h3>
-                <button 
-                  className="btn btn-primary"
-                  onClick={() => {
-                    setVehicleForm({ id: 0, reg: '', make: '', model: '', cap: '' });
-                    setFormError('');
-                    setActiveModal('vehicle');
-                  }}
-                >
-                  <Plus size={16} /> Add Vehicle
-                </button>
+                <h3 className="section-title">Active Vehicles ({vehiclePagination.total || vehicles.length})</h3>
+                {hasPermission('manage_vehicles') && (
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setVehicleForm({ id: 0, reg: '', make: '', model: '', cap: '' });
+                      setFormError('');
+                      setActiveModal('vehicle');
+                    }}
+                  >
+                    <Plus size={16} /> Add Vehicle
+                  </button>
+                )}
               </div>
+              
+              <VehicleFilterPanel 
+                filters={vehicleFilters} 
+                setFilters={setVehicleFilters} 
+                regions={uniqueRegions}
+                onClear={() => setVehicleFilters({ search: '', status: [], type: [], region: [], license_category: [], safety_score: [] })}
+              />
 
               <div className="table-container">
                 <table className="data-table">
@@ -809,17 +885,19 @@ export default function App() {
                     <tr>
                       <th>Registration</th>
                       <th>Make & Model</th>
-                      <th>Weight Capacity</th>
+                      <th>Type & Region</th>
+                      <th>Safety Score</th>
                       <th>Status</th>
-                      <th>Actions</th>
+                      {hasPermission('manage_vehicles') && <th>Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {vehicles.map(v => (
                       <tr key={v.id}>
                         <td style={{ fontWeight: 600 }}>{v.registration_number}</td>
-                        <td>{v.make} {v.model}</td>
-                        <td>{v.capacity_kg.toLocaleString()} kg</td>
+                        <td>{v.make} {v.model}<br/><span style={{fontSize: '11px', color: 'var(--text-muted)'}}>{v.capacity_kg.toLocaleString()} kg cap.</span></td>
+                        <td>{v.vehicle_type || 'N/A'}<br/><span style={{fontSize: '11px', color: 'var(--text-muted)'}}>{v.region || 'N/A'}</span></td>
+                        <td>{v.safety_score !== null ? `${v.safety_score}/100` : 'N/A'}</td>
                         <td>
                           <span className={`badge ${
                             v.status === 'AVAILABLE' ? 'badge-success' : 
@@ -828,6 +906,7 @@ export default function App() {
                             {v.status}
                           </span>
                         </td>
+                        {hasPermission('manage_vehicles') && (
                         <td>
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <button 
@@ -856,11 +935,37 @@ export default function App() {
                             </button>
                           </div>
                         </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              
+              {/* Pagination Controls */}
+              {vehiclePagination.pages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', gap: '8px', alignItems: 'center' }}>
+                  <button 
+                    className="btn btn-secondary" 
+                    disabled={vehiclePagination.page <= 1}
+                    onClick={() => setVehiclePagination(p => ({ ...p, page: p.page - 1 }))}
+                    style={{ padding: '4px 12px', fontSize: '12px' }}
+                  >
+                    Previous
+                  </button>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    Page {vehiclePagination.page} of {vehiclePagination.pages}
+                  </span>
+                  <button 
+                    className="btn btn-secondary" 
+                    disabled={vehiclePagination.page >= vehiclePagination.pages}
+                    onClick={() => setVehiclePagination(p => ({ ...p, page: p.page + 1 }))}
+                    style={{ padding: '4px 12px', fontSize: '12px' }}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
