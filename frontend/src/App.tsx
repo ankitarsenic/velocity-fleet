@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import LiveTripTracker from './LiveTripTracker';
 import MonthlyReportView from './components/MonthlyReportView';
+import AIDispatchModal from './components/AIDispatchModal';
 import VehicleFilterPanel, { FilterState } from './components/VehicleFilterPanel';
 import PaymentGatewayModal, { PaymentTarget } from './PaymentGatewayModal';
 
@@ -142,7 +143,7 @@ export default function App() {
   };
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'vehicles' | 'drivers' | 'trips' | 'maintenance' | 'expenses' | 'fuel' | 'reports'>('vehicles');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'vehicles' | 'drivers' | 'trips' | 'maintenance' | 'expenses' | 'fuel' | 'reports'>('dashboard');
 
   // Core Data Lists
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -434,6 +435,32 @@ export default function App() {
       loadDrivers();
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  const handleAIDispatch = async (tripData: any) => {
+    try {
+      const response = await fetchWithAuth('/trips', {
+        method: 'POST',
+        body: JSON.stringify({
+          vehicle_id: parseInt(tripData.vehicleId),
+          driver_id: parseInt(tripData.driverId),
+          origin: tripData.origin,
+          destination: tripData.dest,
+          cargo_weight_kg: parseInt(tripData.weight)
+        })
+      });
+      if (response.status === 201) {
+        setActiveModal(null);
+        loadTrips();
+        loadVehicles();
+        loadDrivers();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.message || 'Error dispatching trip');
+      }
+    } catch (err: any) {
+      alert('Failed to connect to server');
     }
   };
 
@@ -1032,10 +1059,11 @@ export default function App() {
                               </span>
                             )}
                           </td>
-                          <td>
+                          <td style={isExpired ? { background: 'rgba(220, 38, 38, 0.05)', borderLeft: '3px solid #DC2626' } : {}}>
                             <div>{d.license_number}</div>
-                            <div style={{ fontSize: '12px', color: isExpired ? 'var(--accent-danger)' : 'var(--text-secondary)' }}>
-                              Expiry: {renderDate(d.license_expiry)} {isExpired && '(EXPIRED)'}
+                            <div style={{ fontSize: '12px', color: isExpired ? '#DC2626' : 'var(--text-secondary)', fontWeight: isExpired ? 'bold' : 'normal', display: 'flex', alignItems: 'center' }}>
+                              Expiry: {renderDate(d.license_expiry)} 
+                              {isExpired && <span style={{ padding: '2px 6px', background: '#DC2626', color: 'white', borderRadius: '4px', marginLeft: '6px', fontSize: '10px' }}>EXPIRED</span>}
                             </div>
                           </td>
                           <td>
@@ -1089,16 +1117,26 @@ export default function App() {
             <div className="glass-panel section-panel">
               <div className="section-header">
                 <h3 className="section-title">Trips & Dispatch logs ({trips.length})</h3>
-                <button 
-                  className="btn btn-primary"
-                  onClick={() => {
-                    setTripForm({ vehicleId: '', driverId: '', origin: '', dest: '', weight: '' });
-                    setFormError('');
-                    setActiveModal('trip');
-                  }}
-                >
-                  <Plus size={16} /> Dispatch New Trip
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setTripForm({ vehicleId: '', driverId: '', origin: '', dest: '', weight: '' });
+                      setFormError('');
+                      setActiveModal('trip_manual');
+                    }}
+                  >
+                    Manual Dispatch
+                  </button>
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setActiveModal('trip_ai');
+                    }}
+                  >
+                    <Plus size={16} /> AI Dispatch Assistant
+                  </button>
+                </div>
               </div>
 
               <div className="table-container">
@@ -1489,7 +1527,11 @@ export default function App() {
       )}
 
       {/* 3. DISPATCH TRIP MODAL */}
-      {activeModal === 'trip' && (
+      {activeModal === 'trip_ai' && (
+        <AIDispatchModal onClose={() => setActiveModal(null)} onDispatch={handleAIDispatch} />
+      )}
+
+      {activeModal === 'trip_manual' && (
         <div className="modal-overlay">
           <div className="glass-panel modal-panel">
             <h3 className="section-title" style={{ marginBottom: '24px' }}>Dispatch New Active Trip</h3>

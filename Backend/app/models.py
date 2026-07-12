@@ -178,3 +178,11 @@ class Expense(db.Model):
             'description': self.description,
             'date': self.date.isoformat() if self.date else None
         }
+
+class NotificationLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    driver_id = db.Column(db.Integer, db.ForeignKey('driver.id'), nullable=False)
+    milestone = db.Column(db.Integer, nullable=False) # 30, 15, 7, 1
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    driver = db.relationship('Driver', backref=db.backref('notifications', lazy=True))
